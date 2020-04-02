@@ -108,7 +108,8 @@ class ShardHandler(object):
         """Split the data into as many pieces as needed."""
         splicenum, rem = divmod(len(data), count)
 
-        result = [data[splicenum * z:splicenum * (z + 1)] for z in range(count)]
+        result = [data[splicenum * z:splicenum *
+                       (z + 1)] for z in range(count)]
         # take care of any odd characters
         if rem > 0:
             result[-1] += data[-rem:]
@@ -146,7 +147,28 @@ class ShardHandler(object):
         """Loads the data from all shards, removes the extra 'database' file,
         and writes the new number of shards to disk.
         """
-        pass
+        self.mapping = self.load_map()
+        data = self.load_data_from_shards()
+        keys = [int(z) for z in self.get_shard_ids()]
+        keys.sort()
+        new_shard_num = max(keys)
+
+        spliced_data = self._generate_sharded_data(new_shard_num, data)
+
+        for filename in os.listdir('data/'):
+            if str(new_shard_num) == filename.split('.')[0]:
+                os.remove(f'./data/{filename}')
+
+        for key in list(self.mapping):
+            if key == str(new_shard_num):
+                self.mapping.pop(key)
+
+        for num, d in enumerate(spliced_data):
+            self._write_shard(num, d)
+
+        self.write_map()
+
+        self.sync_replication()
 
     def add_replication(self) -> None:
         """Add a level of replication so that each shard has a backup. Label
@@ -214,6 +236,7 @@ s.build_shards(5, load_data_from_file())
 
 print(s.mapping.keys())
 
-s.add_shard()
+# s.add_shard()
+s.remove_shard()
 
 print(s.mapping.keys())
