@@ -26,6 +26,7 @@ def sh():
     sh.build_shards(1, load_data_from_file())
     return sh
 
+
 nuke_files()  # just in case their file runs things
 
 

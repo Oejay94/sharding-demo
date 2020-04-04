@@ -3,6 +3,8 @@ import os
 from shutil import copyfile
 from typing import List, Dict
 
+# Assistance from Peter Marsh with helper function and adding replications
+
 filename = "chapter2.txt"
 
 
@@ -23,6 +25,15 @@ class ShardHandler(object):
         self.last_char_position = 0
 
     mapfile = "mapping.json"
+
+    def get_replication_level(self):
+        # Assistance from Peter Marsh
+        ids = list()
+        for level in self.get_replication_ids():
+            ids.append(int(level[level.index('-')+1:]))
+        if ids:
+            return max(ids)
+        return 0
 
     def write_map(self) -> None:
         """Write the current 'database' mapping to file."""
@@ -141,7 +152,7 @@ class ShardHandler(object):
 
         self.write_map()
 
-        self.sync_replication()
+        # self.sync_replication()
 
     def remove_shard(self) -> None:
         """Loads the data from all shards, removes the extra 'database' file,
@@ -168,7 +179,7 @@ class ShardHandler(object):
 
         self.write_map()
 
-        self.sync_replication()
+        # self.sync_replication()
 
     def add_replication(self) -> None:
         """Add a level of replication so that each shard has a backup. Label
@@ -185,7 +196,22 @@ class ShardHandler(object):
         to detect how many levels there are and appropriately add the next
         level.
         """
-        pass
+        # Assistance from Peter Marsh
+        self.mapping = self.load_map()
+        replicate_level = self.get_replication_level() + 1
+
+        filenames = [f for f in os.listdir('data/') if '-' not in f]
+
+        for file in filenames:
+            if os.path.exists(f'data/{file}'):
+                copyfile(
+                    f'data/{file}',
+                    f'data/{file[:-4]}-{replicate_level}.txt'
+                )
+
+            self._write_shard_mapping(
+                f'{file[:-4]}-{replicate_level}', '', replication=True)
+        self.write_map()
 
     def remove_replication(self) -> None:
         """Remove the highest replication level.
@@ -208,7 +234,29 @@ class ShardHandler(object):
         2.txt (shard 2, primary)
         etc...
         """
-        pass
+        self.mapping = self.load_map()
+        replicate_level = self.get_replication_level()
+        rep_num = self.get_replication_ids()
+        rep_num.sort
+
+        shard_num = [int(z) for z in self.get_shard_ids()]
+        shard_num.sort
+
+        filenames = [f for f in os.listdir('data/') if '-' in f]
+        for file in filenames:
+            file_replicate = int(file.split('-')[1][:-4])
+            if file_replicate == replicate_level:
+                if os.path.exists(f'data/{file}'):
+                    os.remove(f'data/{file}')
+
+        for key in list(self.mapping):
+            if key not in shard_num and key in rep_num and int(key[-1]) == replicate_level:
+                self.mapping.pop(key)
+
+        # if replicate_level == 0:
+        #     raise Exception('No replicates to remove')
+
+        self.write_map()
 
     def sync_replication(self) -> None:
         """Verify that all replications are equal to their primaries and that
@@ -232,11 +280,14 @@ class ShardHandler(object):
 
 s = ShardHandler()
 
+
 s.build_shards(5, load_data_from_file())
 
 print(s.mapping.keys())
 
 # s.add_shard()
-s.remove_shard()
+# s.remove_shard()
+s.add_replication()
+# s.remove_replication()
 
 print(s.mapping.keys())
